@@ -1,19 +1,27 @@
-import asyncio
-import gzip
-import io
-import json
-from typing import Tuple, Union, Optional, List, Any
+from __future__ import annotations
+
 import aiohttp
 from aiohttp import ClientResponse
-from PIL import Image
-from io import BytesIO
-import numpy as np
+import datetime as dt
+from datetime import datetime
 from Filebin.Errors import *
+import gzip
+import io
+from io import BytesIO
+import json
+import numpy as np
+from PIL import Image
+from typing import TYPE_CHECKING, Tuple, Union, Optional, List, Any, Self
+
+if TYPE_CHECKING:
+    from Filebin import API  # Import self for type checking
+
+BASE_URL = "https://filebin.net"
 
 
 class API:
     def __init__(self):
-        self.__base_endpoint = "https://filebin.net"
+        self.__base_endpoint = BASE_URL
         self.__bins = {}
 
     # Bin
@@ -26,14 +34,16 @@ class API:
             BIN.__delete = _delete
 
             # setting up properties
-            BIN.__set_properties(_r=_r)
+            BIN.__setProperties(_r=_r)
 
             BIN.__qr = None
 
+            BIN.__locally_updated_at = datetime.now()
+
         class _FILE:
-            def __init__(FILE, _f: dict, _bin_id: str, _get, _delete):
+            def __init__(FILE, _f: dict, _bin: API._BIN, _get, _delete):
                 # BIN info
-                FILE.__bin_id = _bin_id
+                FILE.__bin = _bin
 
                 # fetching functions
                 FILE.__get = _get
@@ -43,15 +53,20 @@ class API:
                 FILE.__name = _f.get("filename", None)
                 FILE.__content_type = _f.get("content-type", None)
                 FILE.__bytes = _f.get("bytes", None)
-                FILE.__bytes_readable = _f.get("bytes_readable", None)
                 FILE.__md5 = _f.get("md5", None)
                 FILE.__sha256 = _f.get("sha256", None)
-                FILE.__updated_at = _f.get("updated_at", None)
-                FILE.__updated_at_relative = _f.get("updated_at_relative", None)
-                FILE.__created_at = _f.get("created_at", None)
-                FILE.__created_at_relative = _f.get("created_at_relative", None)
+                FILE.__updated_at = datetime.strptime(
+                    _dt, "%Y-%m-%dT%H:%M:%S.%fZ") if (_dt := _f.get("updated_at", None)) is not None else None
+                FILE.__created_at = datetime.strptime(
+                    _dt, "%Y-%m-%dT%H:%M:%S.%fZ") if (_dt := _f.get("created_at", None)) is not None else None
+
+                FILE.__locally_updated_at = datetime.now()
 
             # properties
+            @property
+            def bin(FILE) -> API._BIN:
+                return FILE.__bin
+
             @property
             def name(FILE) -> Optional[str]:
                 return FILE.__name
@@ -65,10 +80,6 @@ class API:
                 return FILE.__bytes
 
             @property
-            def bytes_readable(FILE) -> str | None:
-                return FILE.__bytes_readable
-
-            @property
             def md5(FILE) -> int | None:
                 return FILE.__md5
 
@@ -77,42 +88,28 @@ class API:
                 return FILE.__sha256
 
             @property
-            def updated_at(FILE) -> str | None:
+            def updated_at(FILE) -> Optional[datetime]:
                 return FILE.__updated_at
 
             @property
-            def updated_at_relative(FILE) -> str | None:
-                return FILE.__updated_at_relative
-
-            @property
-            def created_at(FILE) -> str | None:
+            def created_at(FILE) -> Optional[datetime]:
                 return FILE.__created_at
 
             @property
-            def created_at_relative(FILE) -> str | None:
-                return FILE.__created_at_relative
+            def locally_updated_at(FILE) -> datetime:
+                return FILE.__locally_updated_at
 
             # FILE methods
             async def download(FILE, _path: str = ".") -> bool:
-                return_bool = False
-                _r = await FILE.__get(f"{FILE.__bin_id}/{FILE.name}", _headers={"Accept": "*/*"})
-
-                if _r[0] == 200:
-                    with open(f"{_path}/{FILE.name}", "wb") as _f:
-                        _f.write(_r[1])
-                        return_bool = True
-                elif _r[0] == 404:
-                    raise InvalidFile(FILE.name)
-
-                return return_bool
+                return await FILE.bin.downloadFile(FILE.name, _path)
 
             async def delete(FILE) -> bool:
-                return await FILE.__delete(f"{FILE.__bin_id}/{FILE.name}")
+                return await FILE.__delete(f"{FILE.bin.id}/{FILE.name}")
 
         class _QR:
             def __init__(QR, _image_bytes: bytes, _bin_id: str):
                 QR.__image_bytes = _image_bytes
-                QR.__bin_id = _bin_id
+                n = _bin_id
 
             @property
             def image_bytes(QR) -> bytes:
@@ -129,7 +126,7 @@ class API:
             def save(QR, _path: str = "."):
                 try:
                     Image.fromarray((np.array(Image.open(BytesIO(QR.__image_bytes))) * 255).astype('uint8')).save(
-                        f"{_path}/{QR.__bin_id}.png")
+                        f"{_path}/{n}.png")
                 except Exception as e:
                     print(f"Error opening image: {e}")
 
@@ -148,31 +145,40 @@ class API:
                 for y in range(resized_image.height):
                     for x in range(resized_image.width):
                         pixel = resized_image.getpixel((x, y))
-                        pixel_color = f"\x1b[48;2;{abs(pixel - 1) * 255};{abs(pixel - 1) * 255};{abs(pixel - 1) * 255}m"
+                        pixel_color = f"\x1b[48;2;{
+                            abs(pixel - 1) * 255};{abs(pixel - 1) * 255};{abs(pixel - 1) * 255}m"
                         ansi_image += f"{pixel_color} " * 2
-                    ansi_image += "\x1b[0m\n"  # Reset color at the end of each line
+                    # Reset color at the end of each line
+                    ansi_image += "\x1b[0m\n"
 
                 return ansi_image
 
         # BIN property/attr private setter
-        def __set_properties(BIN, _r: dict) -> None:
+        def __setProperties(BIN, _r: dict) -> None:
             r_bin = _r.get("bin", {})
 
             # bin properties
             BIN.__id = r_bin.get("id", None)
             BIN.__readonly = r_bin.get("readonly", None)
             BIN.__bytes = r_bin.get("bytes", None)
-            BIN.__bytes_readable = r_bin.get("bytes_readable", None)
-            BIN.__updated_at = r_bin.get("updated_at", None)
-            BIN.__updated_at_relative = r_bin.get("updated_at_relative", None)
-            BIN.__created_at = r_bin.get("created_at", None)
-            BIN.__created_at_relative = r_bin.get("created_at_relative", None)
-            BIN.__expired_at = r_bin.get("expired_at", None)
-            BIN.__expired_at_relative = r_bin.get("expired_at_relative", None)
+
+            # bin date time based properties
+            for key in ["updated_at", "created_at", "expired_at"]:
+                setattr(BIN, f"__{key}", datetime.strptime(
+                    _dt, "%Y-%m-%dT%H:%M:%S.%fZ") if (_dt := r_bin.get(key, None)) is not None else None)
+
+                print(getattr(BIN, f"__{key}"))
+
+            BIN.__updated_at = datetime.strptime(_dt, "%Y-%m-%dT%H:%M:%S.%fZ") if (
+                _dt := r_bin.get("updated_at", None)) is not None else None
+            BIN.__created_at = datetime.strptime(_dt, "%Y-%m-%dT%H:%M:%S.%fZ") if (
+                _dt := r_bin.get("created_at", None)) is not None else None
+            BIN.__expired_at = datetime.strptime(_dt, "%Y-%m-%dT%H:%M:%S.%fZ") if (
+                _dt := r_bin.get("expired_at", None)) is not None else None
 
             # files
-            BIN.__files = [BIN._FILE(_f=_f, _bin_id=BIN.id, _get=BIN.__get, _delete=BIN.__delete) for _f in _files] if (
-                _files := _r.get("files", [])) else []
+            BIN.__files = [BIN._FILE(
+                _f=_f, _bin=BIN, _get=BIN.__get, _delete=BIN.__delete) for _f in _r.get("files", [])]
 
         # BIN property/attr accessors
         @property
@@ -188,36 +194,24 @@ class API:
             return BIN.__bytes
 
         @property
-        def bytes_readable(BIN) -> Optional[str]:
-            return BIN.__bytes_readable
-
-        @property
         def files(BIN) -> List[_FILE]:
             return BIN.__files
 
         @property
-        def updated_at(BIN) -> Optional[str]:
+        def updated_at(BIN) -> Optional[datetime]:
             return BIN.__updated_at
 
         @property
-        def updated_at_relative(BIN) -> Optional[str]:
-            return BIN.__updated_at_relative
-
-        @property
-        def created_at(BIN) -> Optional[str]:
+        def created_at(BIN) -> Optional[datetime]:
             return BIN.__created_at
 
         @property
-        def created_at_relative(BIN) -> Optional[str]:
-            return BIN.__created_at_relative
-
-        @property
-        def expired_at(BIN) -> Optional[str]:
+        def expired_at(BIN) -> Optional[datetime]:
             return BIN.__expired_at
 
         @property
-        def expired_at_relative(BIN) -> Optional[str]:
-            return BIN.__expired_at_relative
+        def locally_updated_at(BIN) -> datetime:
+            return BIN.__locally_updated_at
 
         @property
         async def qr(BIN) -> _QR:
@@ -235,9 +229,11 @@ class API:
 
         # BIN methods
         async def update(BIN) -> object:
-            _r = await BIN.__get(_url=BIN.id, _headers={"Accept": "application/json"})
+            _, _r = await BIN.__get(_url=BIN.id, _headers={"Accept": "application/json"})
 
-            BIN.__set_properties(_r)
+            BIN.__setProperties(_r)
+            
+            BIN.__locally_updated_at = datetime.now()
 
             # returning self
             return BIN
@@ -249,7 +245,7 @@ class API:
 
             if BIN.readonly:
                 try:
-                    delattr(BIN, "upload_file")
+                    delattr(BIN, "uploadFile")
                 except AttributeError:
                     print("--x--")
 
@@ -258,16 +254,24 @@ class API:
         async def delete(BIN) -> bool:
             return await BIN.__delete(BIN.id)
 
-        async def download_archive(BIN, _type: str, _path: str = ".") -> bool:
-            _r = True
+        async def downloadArchive(BIN, _type: str, _path: str = ".") -> bool:
+            return_bool = False
             if _type in ["tar", "zip"]:
-                ...
-            else:
-                raise InvalidArchiveType(_type)
+                _r = await BIN.__get(f"archive/{BIN.id}/{_type}")
 
-            return _r
+                if _r[0] == 200:
+                    with open(f"{_path}/{BIN.id}.{_type}", "wb") as f:
+                        f.write(_r[1])
+                        return_bool = True
+                elif _r[0] == 404:
+                    raise InvalidBin(BIN.id)
 
-        async def get_file(BIN, _file_name: str, _from_cache: bool = False) -> Optional[_FILE]:
+                else:
+                    raise InvalidArchiveType(_type)
+
+            return return_bool
+
+        async def getFile(BIN, _file_name: str, _from_cache: bool = False) -> Optional[_FILE]:
             return_file = None
 
             def _rf(_fn: str):
@@ -283,23 +287,47 @@ class API:
 
             return return_file
 
-        async def download_file(BIN, _file_name: str, _path: str = ".") -> bool:
+        async def downloadFile(BIN, _file_name: str, _path: str = ".") -> bool:
             return_bool = False
 
-            _r = await BIN.__get(f"{BIN.id}/{_file_name}")
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    f"{BASE_URL}/{BIN.id}/{_file_name}",
+                    headers={
+                        "Accept-Encoding": "gzip, deflate, br, zstd",
+                        "Accept-Language": "en-US,en;q=0.9,en-GB;q=0.8",
+                        "Cookie": "verified=2024-05-24",
+                        "Host": "filebin.net",
+                        "Referer": "https://filebin.net/",
+                        "accept": "*/*",
+                    },
+                        allow_redirects=False
+                ) as response_1:
+                    if response_1.status in (301, 302):
+                        if (s3_location := response_1.headers.get("Location")):
+                            async with session.get(
+                                s3_location,
+                                headers={
+                                    "Host": "s3.filebin.net",
+                                    "Referer": "https://filebin.net/",
+                                    "accept": "*/*",
+                                },
+                                allow_redirects=False
+                            ) as response_2:
+                                if response_2.status == 200:
+                                    with open(f"{_path}/{_file_name}", "wb") as f:
+                                        while chunk := await response_2.content.readany():
+                                            f.write(chunk)
+                                    return_bool = True
 
-            if _r[0] == 200:
-                with open(f"{_path}/{_file_name}", "wb") as f:
-                    f.write(_r[1])
-                    return_bool = True
-            elif _r[0] == 403:
-                raise DownloadCountReached(_file_name)
-            elif _r[0] == 404:
-                raise InvalidFile(_file_name)
+                    elif response_1.status == 403:
+                        raise DownloadCountReached(_file_name)
+                    elif response_1.status == 404:
+                        raise InvalidFile(_file_name)
 
             return return_bool
 
-        async def delete_file(BIN, _file_name: str) -> bool:
+        async def deleteFile(BIN, _file_name: str) -> bool:
             return_bool = False
 
             _r = await BIN.__delete(f"{BIN.id}/{_file_name}", {"Accept": "application/json"})
@@ -311,7 +339,7 @@ class API:
 
             return return_bool
 
-        async def upload_file(BIN, _file: str) -> bool:
+        async def uploadFile(BIN, _file: str) -> bool:
             ...
 
         def __hash__(BIN) -> str:
@@ -390,10 +418,11 @@ class API:
                 return await self.__response_parser(response=response)
 
     # API public methods
-    async def get_bin(self, _id: str) -> _BIN:
+    async def getBin(self, _id: str) -> _BIN:
         _r = await self.__get(_id, {"Accept": "application/json"})
         if _r[0] == 200:
-            self.__bins[_id] = self._BIN(_r[1], self.__get, self.__post, self.__put, self.__delete)
+            self.__bins[_id] = self._BIN(
+                _r[1], self.__get, self.__post, self.__put, self.__delete)
         elif _r[0] == 404:
             raise InvalidBin(_id)
         return self.__bins[_id]
