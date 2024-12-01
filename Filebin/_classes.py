@@ -1,14 +1,9 @@
 from __future__ import annotations
 
 import aiohttp
-from aiohttp import ClientResponse
-import datetime as dt
 from datetime import datetime
 from .Errors import *
-import gzip
-import io
 from io import BytesIO
-import json
 import numpy as np
 from PIL import Image
 from typing import TYPE_CHECKING, Tuple, Union, Optional, List, Any, Self
@@ -18,7 +13,7 @@ from ._utils import _fetch, _response_parser
 
 
 class _FILE:
-    def __init__(FILE, _f: dict, _bin: _BIN):
+    def __init__(FILE, _f: dict, _bin: _BIN) -> _FILE:
         # BIN info
         FILE.__bin = _bin
 
@@ -77,7 +72,19 @@ class _FILE:
         return await FILE.bin.downloadFile(FILE.name, _path)
 
     async def delete(FILE) -> bool:
-        return await FILE.__delete(f"{FILE.bin.id}/{FILE.name}")
+        return_bool = False
+
+        async with _fetch(
+            url=f"{BASE_URL}/{FILE.bin.id}/{FILE.name}",
+            method="DELETE",
+            headers={"Accept": "application/json"}
+        ) as response:
+            if response.status == 200:
+                return_bool = True
+            elif response.status == 404:
+                InvalidBinOrFile(FILE.bin.id, FILE.name)
+
+        return return_bool
 
     def __str__(FILE) -> str:
         return f"""FILE(
