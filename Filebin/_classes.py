@@ -267,18 +267,26 @@ class _BIN:
 
     async def downloadArchive(BIN, _type: str, _path: str = ".") -> bool:
         return_bool = False
-        """ if _type in ["tar", "zip"]:
-            _r = await BIN.__get(f"archive/{BIN.id}/{_type}")
-
-            if _r[0] == 200:
-                with open(f"{_path}/{BIN.id}.{_type}", "wb") as f:
-                    f.write(_r[1])
+        if _type in ["zip", "tar"]:
+            async with _fetch(
+                url=f"{BASE_URL}/archive/{BIN.id}/{_type}",
+                method="GET",
+                headers={
+                    "Cookie": "verified=2024-05-24",
+                    "Host": "filebin.net",
+                    "Referer": "https://filebin.net/",
+                    "accept": "application/json",
+                }
+            ) as response:
+                if response.status == 200:
+                    with open(f"{_path}/{BIN.id}.{_type}", "wb") as f:
+                        while chunk := await response.content.readany():
+                            f.write(chunk)
                     return_bool = True
-            elif _r[0] == 404:
-                raise InvalidBin(BIN.id)
-
-            else:
-                raise InvalidArchiveType(_type) """
+                elif response.status == 404:
+                    InvalidBin(BIN.id)
+        else:
+            raise InvalidArchiveType(_type)
 
         return return_bool
 
