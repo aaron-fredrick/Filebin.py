@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import aiohttp
+from aiohttp import ClientSession
 from datetime import datetime
 from .Errors import *
 from io import BytesIO
@@ -145,8 +146,10 @@ class _QR:
 
 # Bin
 class _BIN:
-    def __init__(BIN, _r: dict):
+    def __init__(BIN, _r: dict, _s: ClientSession):
         # setting up properties
+        BIN.__session = _s
+
         BIN.__setProperties(_r=_r)
 
         BIN.__qr = None
@@ -216,6 +219,7 @@ class _BIN:
         if BIN.__qr:
             qr = BIN.__qr
         else:
+            # TODO: changes according to new methods
             _r = await BIN.__get(f"qr/{BIN.id}", {"Accept": "image/png"})
             if _r[0] == 200:
                 qr = BIN._QR(_image_bytes=_r[1], _bin_id=BIN.id)
@@ -225,10 +229,9 @@ class _BIN:
         return qr
 
     # BIN methods
-    async def update(BIN) -> object:
-        async with _fetch(
-            url=f"{BASE_URL}/{BIN.id}",
-            method="GET",
+    async def update(BIN) -> _BIN:
+        async with BIN.__session.get(
+            url=BIN.id,
             headers={"Accept": "application/json"}
         ) as response:
             _, _r = await _response_parser(response=response)
@@ -238,12 +241,8 @@ class _BIN:
         # returning self
         return BIN
 
-    async def lock(BIN) -> object:
-        async with _fetch(
-            url=f"{BASE_URL}/{BIN.id}",
-            method="PUT",
-            headers={"Accept": "application/json"}
-        ) as response:
+    async def lock(BIN) -> _BIN:
+        async with BIN.__session.put(url=BIN.id, headers={"Accept": "application/json"}) as response:
             _, _r = await _response_parser(response=response)
             await BIN.update()
 
@@ -260,9 +259,8 @@ class _BIN:
     async def delete(BIN) -> bool:
         return_bool = False
 
-        async with _fetch(
-            url=f"{BASE_URL}/{BIN.id}",
-            method="DELETE",
+        async with BIN.__session.delete(
+            url=BIN.id,
             headers={"Accept": "application/json"}
         ) as response:
             if response.status == 200:
@@ -275,15 +273,9 @@ class _BIN:
     async def downloadArchive(BIN, _type: str, _path: str = ".") -> bool:
         return_bool = False
         if _type in ["zip", "tar"]:
-            async with _fetch(
-                url=f"{BASE_URL}/archive/{BIN.id}/{_type}",
-                method="GET",
-                headers={
-                    "Cookie": "verified=2024-05-24",
-                    "Host": "filebin.net",
-                    "Referer": "https://filebin.net/",
-                    "accept": "application/json",
-                }
+            async with BIN.__session.get(
+                url=f"archive/{BIN.id}/{_type}",
+                headers={"accept": "application/json"}
             ) as response:
                 if response.status == 200:
                     with open(f"{_path}/{BIN.id}.{_type}", "wb") as f:
@@ -315,23 +307,14 @@ class _BIN:
 
     async def downloadFile(BIN, _file_name: str, _path: str = ".") -> bool:
         return_bool = False
-
-        async with aiohttp.ClientSession() as session:
-            async with session.get(
-                f"{BASE_URL}/{BIN.id}/{_file_name}",
-                headers={
-                    "Accept-Encoding": "gzip, deflate, br, zstd",
-                    "Accept-Language": "en-US,en;q=0.9,en-GB;q=0.8",
-                    "Cookie": "verified=2024-05-24",
-                    "Host": "filebin.net",
-                    "Referer": "https://filebin.net/",
-                    "accept": "*/*",
-                },
-                    allow_redirects=False
-            ) as response_1:
-                if response_1.status in (301, 302):
+        async with BIN.__session.get(
+            f"{BIN.id}/{_file_name}",
+            allow_redirects=False
+        ) as response_1:
+            if response_1.status in (301, 302):
+                async with ClientSession() as _session:
                     if (s3_location := response_1.headers.get("Location")):
-                        async with session.get(
+                        async with _session.get(
                             s3_location,
                             headers={
                                 "Host": "s3.filebin.net",
@@ -346,10 +329,10 @@ class _BIN:
                                         f.write(chunk)
                                 return_bool = True
 
-                elif response_1.status == 403:
-                    raise DownloadCountReached(_file_name)
-                elif response_1.status == 404:
-                    raise InvalidFile(_file_name)
+            elif response_1.status == 403:
+                raise DownloadCountReached(_file_name)
+            elif response_1.status == 404:
+                raise InvalidFile(_file_name)
 
         return return_bool
 
@@ -375,4 +358,15 @@ class _BIN:
         return BIN.id
 
     def __str__(BIN) -> str:
-        return ""
+        return f"""BIN(
+    id        = {BIN.id}
+    read_only = {BIN.readonly}
+    bytes     = {BIN.bytes}
+
+    created @ {BIN.created_at}
+    updated @ {BIN.updated_at}
+    expires @ {BIN.expired_at}
+
+    files {[_f.name for _f in BIN.files]}
+)
+    """
