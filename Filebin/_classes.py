@@ -1,4 +1,5 @@
 from __future__ import annotations
+import os
 
 import aiohttp
 from aiohttp import ClientSession
@@ -14,8 +15,9 @@ from ._utils import _fetch, _response_parser
 
 
 class _FILE:
-    def __init__(FILE, _f: dict, _bin: _BIN) -> _FILE:
+    def __init__(FILE, _f: dict, _bin: _BIN, _s: ClientSession) -> _FILE:
         # BIN info
+        FILE.__session = _s
         FILE.__bin = _bin
 
         # file properties
@@ -70,14 +72,41 @@ class _FILE:
 
     # FILE methods
     async def download(FILE, _path: str = ".") -> bool:
-        return await FILE.bin.downloadFile(FILE.name, _path)
+        return_bool = False
+        async with FILE.__session.get(
+            f"{FILE.bin.id}/{FILE.name}",
+            allow_redirects=False
+        ) as response_1:
+            if response_1.status in (301, 302):
+                async with ClientSession() as _session:
+                    if (s3_location := response_1.headers.get("Location")):
+                        async with _session.get(
+                            s3_location,
+                            headers={
+                                "Host": "s3.filebin.net",
+                                "Referer": "https://filebin.net/",
+                                "accept": "*/*",
+                            },
+                            allow_redirects=False
+                        ) as response_2:
+                            if response_2.status == 200:
+                                with open(f"{_path}/{FILE.name}", "wb") as f:
+                                    while chunk := await response_2.content.readany():
+                                        f.write(chunk)
+                                return_bool = True
+
+            elif response_1.status == 403:
+                raise DownloadCountReached(FILE.name)
+            elif response_1.status == 404:
+                raise InvalidFile(FILE.name)
+
+        return return_bool
 
     async def delete(FILE) -> bool:
         return_bool = False
 
-        async with _fetch(
+        async with FILE.__session.delete(
             url=f"{BASE_URL}/{FILE.bin.id}/{FILE.name}",
-            method="DELETE",
             headers={"Accept": "application/json"}
         ) as response:
             if response.status == 200:
@@ -167,18 +196,25 @@ class _BIN:
 
         # bin date time based properties
         for key in ["updated_at", "created_at", "expired_at"]:
-            setattr(BIN, f"__{key}", datetime.strptime(
-                _dt, "%Y-%m-%dT%H:%M:%S.%fZ") if (_dt := r_bin.get(key, None)) is not None else None)
+            _dt = r_bin.get(key, None)  # Fetch the timestamp value
+            if _dt is not None:
+                try:
+                    parsed_time = datetime.strptime(
+                        _dt, "%Y-%m-%dT%H:%M:%S.%fZ")
+                except ValueError:
+                    try:
+                        parsed_time = datetime.strptime(
+                            _dt, "%Y-%m-%dT%H:%M:%SZ")
+                    except ValueError:
+                        parsed_time = None  # Handle unexpected formats gracefully
+            else:
+                parsed_time = None
 
-        BIN.__updated_at = datetime.strptime(_dt, "%Y-%m-%dT%H:%M:%S.%fZ") if (
-            _dt := r_bin.get("updated_at", None)) is not None else None
-        BIN.__created_at = datetime.strptime(_dt, "%Y-%m-%dT%H:%M:%S.%fZ") if (
-            _dt := r_bin.get("created_at", None)) is not None else None
-        BIN.__expired_at = datetime.strptime(_dt, "%Y-%m-%dT%H:%M:%S.%fZ") if (
-            _dt := r_bin.get("expired_at", None)) is not None else None
+            setattr(BIN, f"__{key}", parsed_time)
 
         # files
-        BIN.__files = [_FILE(_f=_f, _bin=BIN) for _f in _r.get("files", [])]
+        BIN.__files = [_FILE(_f=_f, _bin=BIN, _s=BIN.__session) for _f in _fs] if (
+            _fs := _r.get("files", None)) is not None else []
 
     # BIN property/attr accessors
     @property
@@ -303,56 +339,52 @@ class _BIN:
             await BIN.update()
             return_file = _rf(_fn=_file_name)
 
+        if return_file is None:
+            raise InvalidFile(_file_name)
+
         return return_file
 
     async def downloadFile(BIN, _file_name: str, _path: str = ".") -> bool:
-        return_bool = False
-        async with BIN.__session.get(
-            f"{BIN.id}/{_file_name}",
-            allow_redirects=False
-        ) as response_1:
-            if response_1.status in (301, 302):
-                async with ClientSession() as _session:
-                    if (s3_location := response_1.headers.get("Location")):
-                        async with _session.get(
-                            s3_location,
-                            headers={
-                                "Host": "s3.filebin.net",
-                                "Referer": "https://filebin.net/",
-                                "accept": "*/*",
-                            },
-                            allow_redirects=False
-                        ) as response_2:
-                            if response_2.status == 200:
-                                with open(f"{_path}/{_file_name}", "wb") as f:
-                                    while chunk := await response_2.content.readany():
-                                        f.write(chunk)
-                                return_bool = True
-
-            elif response_1.status == 403:
-                raise DownloadCountReached(_file_name)
-            elif response_1.status == 404:
-                raise InvalidFile(_file_name)
-
-        return return_bool
+        if _f := await BIN.getFile(_file_name):
+            return await _f.download(_path)
 
     async def deleteFile(BIN, _file_name: str) -> bool:
         return_bool = False
-
-        async with _fetch(
-            url=f"{BASE_URL}/{BIN.id}/{_file_name}",
-            method="DELETE",
-            headers={"Accept": "application/json"}
-        ) as response:
-            if response.status == 200:
-                return_bool = True
-            elif response.status == 404:
-                InvalidBinOrFile(_bin_id=BIN.id, _file_name=_file_name)
+        if (_f := await BIN.getFile(_file_name)) and (await _f.delete()):
+            BIN.files.remove(_f)
+            return_bool = True
 
         return return_bool
 
-    async def uploadFile(BIN, _file: str) -> bool:
-        ...
+    async def uploadFile(BIN, _file: str) -> Optional[_FILE]:
+        return_file = None
+
+        with open(_file, "rb") as file_data:
+            _file_name = os.path.basename(_file)
+            async with BIN.__session.post(
+                url=f"{BIN.id}/{_file_name}",
+                headers={
+                    "accept": "application/json",
+                    "cid": "Filebin.py",
+                    "Content-Type": "application/octet-stream"
+                },
+                data=file_data
+            ) as response:
+                _s, _r = await _response_parser(response)
+                if _s == 201:
+                    BIN.__files.append(
+                        (_f := _FILE(_f=_r.get("file"), _bin=BIN, _s=BIN.__session))
+                    )
+                    return_file = _f
+                elif _s == 400:
+                    raise InvalidBinOrFile(
+                        _bin_id=BIN.id, _file_name=_file_name)
+                elif _s == 403:
+                    raise StorageFull(_bin_id=BIN.id)
+                elif _s == 404:
+                    raise LockedBin(_bin_id=BIN.id)
+
+        return return_file
 
     def __hash__(BIN) -> str:
         return BIN.id

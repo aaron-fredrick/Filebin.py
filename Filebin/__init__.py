@@ -81,8 +81,12 @@ class API:
             return await bin.lock()
         
     async def deleteBin(self, _id: str) -> bool:
-        if bin:=await self.getBin(_id):
-            return await bin.delete()
+        return_bool = False
+        if (bin:=await self.getBin(_id)) and (await bin.delete()):
+            self.bins.pop(bin.id)
+            return_bool = True
+        
+        return return_bool
 
     async def downloadArchivedBin(self, _id: str, _type: str, _path: str = ".") -> bool:
         if bin:=await self.getBin(_id):

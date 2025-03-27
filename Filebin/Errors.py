@@ -26,3 +26,15 @@ class DownloadCountReached(Exception):
     def __init__(self, _file_name: str):
         self.message = f"Download Count Reached!, {_file_name!r}"
         super().__init__(self.message)
+
+
+class StorageFull(Exception):
+    def __init__(self, _bin_id: str):
+        self.message = f"""Bin Storage Full!, {_bin_id!r}"""
+        super().__init__(self.message)
+
+
+class LockedBin(Exception):
+    def __init__(self, _bin_id: str):
+        self.message = f"""Bin is Locked!, {_bin_id!r}"""
+        super().__init__(self.message)
