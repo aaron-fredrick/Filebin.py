@@ -17,11 +17,14 @@ class API:
     def __init__(self):
         self.__bins = {}
         self.__session = None
-        
-    
+
     @property
     def bins(self) -> dict[str, _BIN]:
         return self.__bins
+
+    async def start(self):
+        await self.__createSessionIfNotExist()
+        return self
 
     async def __createSessionIfNotExist(self) -> None:
         if self.__session is None:
@@ -75,21 +78,21 @@ class API:
                     raise InvalidBin(_id)
 
             return self.__bins[_id]
-        
+
     async def lockBin(self, _id: str) -> _BIN:
-        if bin:=await self.getBin(_id):
+        if bin := await self.getBin(_id):
             return await bin.lock()
-        
+
     async def deleteBin(self, _id: str) -> bool:
         return_bool = False
-        if (bin:=await self.getBin(_id)) and (await bin.delete()):
+        if (bin := await self.getBin(_id)) and (await bin.delete()):
             self.bins.pop(bin.id)
             return_bool = True
-        
+
         return return_bool
 
     async def downloadArchivedBin(self, _id: str, _type: str, _path: str = ".") -> bool:
-        if bin:=await self.getBin(_id):
+        if bin := await self.getBin(_id):
             return await bin.downloadArchive(_type, _path)
 
     # FILE functions
@@ -117,7 +120,7 @@ class API:
         bin = self.bins.get(_bin_id, None)
 
         # If using cache, return the file directly if the bin exists
-        if _from_cache and  bin is not None:
+        if _from_cache and bin is not None:
             return await bin.getFile(_file_name, _from_cache)
         elif _from_cache:
             return None  # If bin is not in cache, return None

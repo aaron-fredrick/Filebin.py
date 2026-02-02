@@ -1,28 +1,50 @@
-# pyproject.toml
-
-[tool.poetry]
-name = "Filebin.py"
-version = "0.1.0.dev1"
-description = "Your package description"
-authors = [
-    "Todo Lodo <me@todolodo.xyz>",
-]
-repository = "https://github.com/TodoLodo/Filebin.py"
-documentation = "https://github.com/TodoLodo/Filebin.py#README"
-packages = [
-    { include = "Filebin" },
-]
-include = ["pyproject.toml"]
-
-[tool.poetry.dependencies]
-python = "^3.11"
-aiohttp = "^3.7.4"
-
-[tool.poetry.scripts]
-filebin = "filebin:main"
-
-[tool.poetry.dev-dependencies]
-
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+
+[project]
+name = "Filebin.py"
+version = "0.1.0a1.dev0"   # Alpha 1 dev (PEP 440 compliant)
+description = "Python API wrapper for Filebin"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+
+authors = [
+  { name = "Aaron Fredrick", email = "Aaron_Fredrick@proton.me" }
+]
+
+dependencies = [
+  "aiohttp>=3.9",
+  "Pillow>=10.0",
+  "numpy>=2.0",
+]
+
+keywords = ["filebin", "api", "async", "file-upload"]
+
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.14",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: OS Independent",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["Filebin"]
+
+[project.urls]
+Homepage = "https://github.com/aaron-fredrick/Filebin.py"
+Repository = "https://github.com/aaron-fredrick/Filebin.py"
+Issues = "https://github.com/aaron-fredrick/Filebin.py/issues"
+
+
+[project.optional-dependencies]
+dev = [
+  "pytest",
+  "ruff",
+  "black",
+]
