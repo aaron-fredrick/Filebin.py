@@ -1,40 +1,50 @@
-class InvalidArchiveType(Exception):
-    def __init__(self, _type: str):
-        self.message = f"Invalid Archive Type, {_type!r}"
+class FilebinError(Exception):
+    """Base class for all Filebin library exceptions."""
+
+
+class InvalidArchiveType(FilebinError):
+    def __init__(self, archive_type: str):
+        self.message = f"Invalid archive type: {archive_type!r}. Expected 'zip' or 'tar'."
         super().__init__(self.message)
 
 
-class InvalidBin(Exception):
-    def __init__(self, _id: str):
-        self.message = f"Invalid Bin Id, {_id!r}"
+class InvalidBin(FilebinError):
+    def __init__(self, bin_id: str):
+        self.message = f"Bin not found: {bin_id!r}"
         super().__init__(self.message)
 
 
-class InvalidFile(Exception):
-    def __init__(self, _file_name: str):
-        self.message = f"Invalid File, {_file_name!r}"
+class InvalidFile(FilebinError):
+    def __init__(self, file_name: str):
+        self.message = f"File not found in bin: {file_name!r}"
         super().__init__(self.message)
 
 
-class InvalidBinOrFile(Exception):
-    def __init__(self, _bin_id: str, _file_name: str):
-        self.message = f"""Invalid Bin or File, {f"{_bin_id}/{_file_name}"!r}"""
+class InvalidBinOrFile(FilebinError):
+    def __init__(self, bin_id: str, file_name: str):
+        self.message = f"Invalid bin or file: {bin_id!r}/{file_name!r}"
         super().__init__(self.message)
 
 
-class DownloadCountReached(Exception):
-    def __init__(self, _file_name: str):
-        self.message = f"Download Count Reached!, {_file_name!r}"
+class DownloadCountReached(FilebinError):
+    def __init__(self, file_name: str):
+        self.message = f"Download count limit reached for file: {file_name!r}"
         super().__init__(self.message)
 
 
-class StorageFull(Exception):
-    def __init__(self, _bin_id: str):
-        self.message = f"""Bin Storage Full!, {_bin_id!r}"""
+class StorageFull(FilebinError):
+    def __init__(self, bin_id: str):
+        self.message = f"Storage is full for bin: {bin_id!r}"
         super().__init__(self.message)
 
 
-class LockedBin(Exception):
-    def __init__(self, _bin_id: str):
-        self.message = f"""Bin is Locked!, {_bin_id!r}"""
+class LockedBin(FilebinError):
+    def __init__(self, bin_id: str):
+        self.message = f"Bin is locked (read-only): {bin_id!r}"
+        super().__init__(self.message)
+
+
+class LockFailed(FilebinError):
+    def __init__(self, bin_id: str):
+        self.message = f"Failed to lock bin: {bin_id!r}"
         super().__init__(self.message)

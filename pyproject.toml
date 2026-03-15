@@ -5,8 +5,8 @@ build-backend = "hatchling.build"
 
 [project]
 name = "Filebin.py"
-version = "0.1.0a1.dev0"   # Alpha 1 dev (PEP 440 compliant)
-description = "Python API wrapper for Filebin"
+version = "0.1.0a1"
+description = "Async Python wrapper for the Filebin.net API"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -18,33 +18,78 @@ authors = [
 dependencies = [
   "aiohttp>=3.9",
   "Pillow>=10.0",
-  "numpy>=2.0",
 ]
 
-keywords = ["filebin", "api", "async", "file-upload"]
+keywords = ["filebin", "api", "async", "file-upload", "file-storage"]
 
 classifiers = [
   "Development Status :: 3 - Alpha",
-  "Programming Language :: Python :: 3",
-  "Programming Language :: Python :: 3.14",
-  "Programming Language :: Python :: Implementation :: CPython",
-  "Programming Language :: Python :: Implementation :: PyPy",
+  "Intended Audience :: Developers",
   "License :: OSI Approved :: MIT License",
   "Operating System :: OS Independent",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: Implementation :: CPython",
+  "Programming Language :: Python :: Implementation :: PyPy",
+  "Topic :: Internet :: WWW/HTTP",
+  "Topic :: Software Development :: Libraries :: Python Modules",
+  "Typing :: Typed",
 ]
 
-[tool.hatch.build.targets.wheel]
-packages = ["Filebin"]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.23",
+  "pytest-mock>=3.12",
+  "ruff>=0.4",
+  "black>=24.0",
+]
+
 
 [project.urls]
 Homepage = "https://github.com/aaron-fredrick/Filebin.py"
 Repository = "https://github.com/aaron-fredrick/Filebin.py"
 Issues = "https://github.com/aaron-fredrick/Filebin.py/issues"
+Changelog = "https://github.com/aaron-fredrick/Filebin.py/releases"
 
 
-[project.optional-dependencies]
-dev = [
-  "pytest",
-  "ruff",
-  "black",
+[project.scripts]
+filebin = "Filebin.__main__:main"
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["Filebin"]
+
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = [
+  "network: marks tests that require live network access to Filebin.net (deselect with '-m \"not network\"')",
+]
+filterwarnings = [
+  "error",
+  # aiohttp emits DeprecationWarning for Python 3.12+ — expected upstream noise
+  "ignore::DeprecationWarning:aiohttp",
+]
+
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W"]
+ignore = [
+  # camelCase is the chosen naming convention for this project (greenfield style)
+  "N802",  # Function name should be lowercase
+  "N818",  # Exception name should end with Error suffix
+  "N999",  # Invalid module name (Filebin package)
+  # __init__ return type annotation omitted intentionally
+  "ANN204",
+  # Older Optional[X] / List[X] typing style is preferred over X | None / list[X]
+  "UP006", "UP007", "UP035", "UP045",
 ]
