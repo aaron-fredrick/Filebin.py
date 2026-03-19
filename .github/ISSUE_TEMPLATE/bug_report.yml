@@ -1,0 +1,42 @@
+name: Bug Report
+description: Create a report to help us improve the library
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this! Please provide as much detail as possible.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: Python version, OS, OS Version, `aiohttp` version
+      placeholder: Python 3.12, Windows 11, aiohttp 3.9
+    validations:
+      required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Describe the Bug
+      description: A clear and concise description of what the bug is.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: Provide a minimal code snippet or steps that reproduce the problem.
+      placeholder: |
+        1. `await api.getBin("my-bin")`
+        2. `await bin.downloadFile("does_not_exist.txt")`
+        3. Exception stacktrace...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected Behavior
+      description: A clear and concise description of what you expected to happen.
+    validations:
+      required: true

@@ -1,10 +1,13 @@
 # Filebin.py
 
-[![PyPI](https://img.shields.io/pypi/v/Filebin.py)](https://pypi.org/project/Filebin.py/)
-[![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
-[![CI](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/ci.yml/badge.svg)](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/ci.yml)
-[![Python](https://img.shields.io/pypi/pyversions/Filebin.py)](https://pypi.org/project/Filebin.py/)
-![Status](https://img.shields.io/badge/status-alpha-orange)
+<div align="center">
+
+[![PyPI status](https://img.shields.io/pypi/v/Filebin.py?style=flat-square)](https://pypi.org/project/Filebin.py/)
+[![CI status](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/ci.yml)
+[![CodeQL status](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/codeql.yml/badge.svg?style=flat-square)](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/codeql.yml)
+[![License status](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+
+</div>
 
 An async Python library and CLI for [Filebin.net](https://filebin.net) — upload, download, and manage file bins programmatically or from your terminal.
 
@@ -215,3 +218,10 @@ ruff check Filebin/ tests/
 ## License
 
 MIT © [Aaron Fredrick](https://github.com/aaron-fredrick)
+
+---
+
+## 💖 Support the Project
+If you find Filebin.py useful, please consider supporting its development:
+
+[![ko-fi](https://ko-fi.com/img/githubbutton_sm.svg)](https://ko-fi.com/aaronfredrick)
