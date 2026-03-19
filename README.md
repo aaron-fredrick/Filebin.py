@@ -2,10 +2,10 @@
 
 <div align="center">
 
-[![PyPI status](https://img.shields.io/pypi/v/Filebin.py?style=flat-square)](https://pypi.org/project/Filebin.py/)
-[![CI status](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/ci.yml/badge.svg?style=flat-square)](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/ci.yml)
-[![CodeQL status](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/codeql.yml/badge.svg?style=flat-square)](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/codeql.yml)
-[![License status](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
+[![PyPI status](https://img.shields.io/pypi/v/Filebin.py)](https://pypi.org/project/Filebin.py/)
+[![CI status](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/ci.yml/badge.svg)](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/ci.yml)
+[![CodeQL status](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/codeql.yml/badge.svg)](https://github.com/aaron-fredrick/Filebin.py/actions/workflows/codeql.yml)
+[![License status](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 </div>
 
